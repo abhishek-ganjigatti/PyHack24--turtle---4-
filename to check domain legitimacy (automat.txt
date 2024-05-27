@@ -1,0 +1,94 @@
+to check domain legitimacy (automatically for  every 24 hours)
+(errors)
+
+
+
+import requests
+import json
+import time
+import psycopg2
+from datetime import datetime, timedelta
+
+# Replace with your actual WHOIS API key
+api_key = "test_jkXtVWFh42XLqxiAO0T36n2Nv13TZa5hkrJlCkop"
+api_url = "https://api.nettoolkit.com/v1/account/test-api-keys"
+
+# Database connection parameters
+db_params = {
+    'dbname': 'domain_data',
+    'user': 'postgres',
+    'password': '9898',
+    'host': 'localhost',
+    'port': 5432
+}
+
+def connect_db():
+    try:
+        conn = psycopg2.connect(**db_params)
+        return conn
+    except Exception as e:
+        print(f"Error connecting to the database: {e}")
+        return None
+
+def insert_domain_data(conn, domain_data):
+    try:
+        with conn.cursor() as cursor:
+            for domain in domain_data:
+                cursor.execute(
+                    """
+                    INSERT INTO newly_registered_domains (domain_name, registration_date, registrar, country, raw_data)
+                    VALUES (%s, %s, %s, %s, %s)
+                    """,
+                    (
+                        domain.get('domainName'),
+                        domain.get('createDate'),
+                        domain.get('registrarName'),
+                        domain.get('country'),
+                        json.dumps(domain)
+                    )
+                )
+        conn.commit()
+    except Exception as e:
+        print(f"Error inserting data into the database: {e}")
+
+def fetch_new_domains(api_url, api_key):
+    # Define the time period for the query (e.g., the last 24 hours)
+    now = datetime.utcnow()
+    yesterday = now - timedelta(days=1)
+    
+    # Format the query parameters
+    params = {
+        'apiKey': api_key,
+        'since': yesterday.strftime('%Y-%m-%dT%H:%M:%SZ'),
+        'to': now.strftime('%Y-%m-%dT%H:%M:%SZ')
+    }
+    
+    try:
+        response = requests.get(api_url, params=params)
+        response.raise_for_status()  # Raises an HTTPError for bad responses
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching data: {e}")
+        return None
+
+def main():
+    conn = connect_db()
+    if not conn:
+        return
+    
+    while True:
+        # Fetch new domains
+        domains_response = fetch_new_domains(api_url, api_key)
+        
+        if domains_response:
+            domains = domains_response.get('domains', [])
+            if domains:
+                # Insert the fetched domains into the database
+                insert_domain_data(conn, domains)
+                print(f"Inserted {len(domains)} domains into the database.")
+        
+        # Wait for the next interval (e.g., 24 hours)
+        time.sleep(86400)
+
+if __name__ == "__main__":
+    main()

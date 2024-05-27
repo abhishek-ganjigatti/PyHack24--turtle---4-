@@ -1,0 +1,47 @@
+to get info about domain (manual)
+
+import socket
+import ssl
+import whois
+
+def get_ssl_info(hostname):
+    context = ssl.create_default_context()
+    conn = context.wrap_socket(socket.socket(socket.AF_INET), server_hostname=hostname)
+    conn.settimeout(3.0)
+    
+    try:
+        conn.connect((hostname, 443))
+        ssl_info = conn.getpeercert()
+        conn.close()
+        return ssl_info
+    except Exception as e:
+        return None
+
+def get_whois_info(domain):
+    try:
+        w = whois.whois(domain)
+        return w
+    except Exception as e:
+        return None
+
+def main(domain):
+    ssl_info = get_ssl_info(domain)
+    whois_info = get_whois_info(domain)
+
+    if ssl_info:
+        print(f"SSL Certificate for {domain}:")
+        for key, value in ssl_info.items():
+            print(f"{key}: {value}")
+    else:
+        print(f"Could not retrieve SSL information for {domain}")
+
+    if whois_info:
+        print(f"\nWHOIS Information for {domain}:")
+        for key, value in whois_info.items():
+            print(f"{key}: {value}")
+    else:
+        print(f"Could not retrieve WHOIS information for {domain}")
+
+if __name__ == "__main__":
+    domain = input("Enter the domain name: ")
+    main(domain)
