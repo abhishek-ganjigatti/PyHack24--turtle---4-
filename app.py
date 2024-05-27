@@ -6,7 +6,6 @@ import joblib
 import pandas as pd
 import json
 from sklearn.ensemble import RandomForestClassifier
-import time
 
 def get_web_content(domain):
     headers = {
@@ -34,8 +33,6 @@ def get_whois_info(domain):
         return None
 
 def extract_features(whois_info, web_content):
-    # Example feature extraction from domain data
-    # Replace this with your actual feature extraction code
     whois_features = len(whois_info) if whois_info else 0
     web_content_features = len(web_content) if web_content else 0
     
@@ -52,44 +49,44 @@ def load_model():
 def main():
     st.title("Website Safety Checker")
 
-    domain = st.text_input("Enter the domain name (e.g., example.com):")
+    domain = st.text_input("Enter the domain name (e.g., example.com):").strip()
 
     if st.button("Check Website Safety"):
         if not domain:
             st.warning("Please enter a domain name.")
         else:
-            start_time = time.time()  # Start time for processing
-
             st.info(f"Fetching data for {domain}...")
 
-            web_content = get_web_content(domain)
-            whois_info = get_whois_info(domain)
+            # Check if the domain already exists in the CSV file
+            try:
+                existing_data = pd.read_csv('websites.csv')
+            except FileNotFoundError:
+                st.error("The CSV file 'websites.csv' was not found.")
+                return
 
-            if web_content and whois_info:
-                # Load existing data to compare source code
-                existing_data = pd.read_csv('domain_source_code_f.csv')
-                
-                match_found = any(existing_data['web_content'] == web_content)
-                if match_found:
-                    st.info("Website source code matches with our database.")
-                else:
-                    st.warning("Website source code does not match our database.")
-                
-                st.info("Running the ML model to check safety...")
-                features = extract_features(json.dumps(whois_info, default=str), web_content)
-                model = load_model()
-                prediction = model.predict(features)[0]
-
-                if prediction == 1:
-                    st.error("The website is potentially unsafe (phishing).")
-                else:
-                    st.success("The website appears to be safe.")
-
-                end_time = time.time()  # End time for processing
-                processing_time = end_time - start_time
-                st.info(f"Processing time: {processing_time:.2f} seconds")
+            if domain in existing_data['Website'].values:
+                st.info("Website is safe to proceed.")
+                web_content = None
             else:
-                st.error("Failed to fetch necessary information for the domain.")
+                st.warning("Domain not found in the database. Fetching new data...")
+                if domain.startswith("http://") or domain.startswith("https://"):
+                    domain = domain.split("://")[1]
+
+                web_content = get_web_content(domain)
+                whois_info = get_whois_info(domain)
+
+                if web_content and whois_info:
+                    st.info("Running the ML model to check safety...")
+                    features = extract_features(json.dumps(whois_info, default=str), web_content)
+                    model = load_model()
+                    prediction = model.predict(features)[0]
+
+                    if prediction == 1:
+                        st.error("The website is potentially unsafe (phishing).")
+                    else:
+                        st.success("The website appears to be safe.")
+                else:
+                    st.error("Failed to fetch necessary information for the domain.")
 
 if __name__ == "__main__":
     main()
